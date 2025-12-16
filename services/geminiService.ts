@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { PatientData } from "../types";
 
 export const generateDiaryText = async (data: PatientData): Promise<any> => {
@@ -9,76 +9,69 @@ export const generateDiaryText = async (data: PatientData): Promise<any> => {
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const systemInstruction = `
-    Ты - ассистент хирурга. Твоя задача - сгенерировать ТРИ шаблона состояния пациента для истории болезни.
-    Отвечай ТОЛЬКО валидным JSON объектом. Никакого маркдауна.
-    
-    Структура JSON должна быть строго такой:
-    {
-      "preOp": { 
-        "complaints": "Жалобы до операции", 
-        "objectiveStatus": "Общий статус до операции (без цифр АД/ЧД)", 
-        "localStatus": "Локальный статус до операции", 
-        "recommendations": "Рекомендации до операции" 
-      },
-      "postOpStandard": { 
-        "complaints": "Жалобы после операции (стабильные)", 
-        "objectiveStatus": "Общий статус после операции",
-        "localStatus": "Локальный статус (ранний п/о период)", 
-        "recommendations": "Рекомендации п/о" 
-      },
-      "postOpFinal": { 
-        "complaints": "Жалобы перед выпиской (улучшение)", 
-        "objectiveStatus": "Общий статус перед выпиской",
-        "localStatus": "Локальный статус (заживление)", 
-        "recommendations": "Рекомендации при выписке" 
-      }
-    }
-  `;
-
   const prompt = `
     Пациент:
     Диагноз: "${data.diagnosis}"
     Операция: ${data.surgeryDate}
 
-    Сгенерируй 3 статических состояния:
+    Сгенерируй 3 статических состояния для медицинского дневника хирурга:
     1. "preOp": Период от поступления до операции.
-    2. "postOpStandard": Период после операции (основной этап лечения).
-    3. "postOpFinal": Период перед выпиской (последние 2 дня, подготовка к выписке, швы сняты или спокойны).
+    2. "postOpStandard": Период после операции (основной этап лечения, 1-3 сутки).
+    3. "postOpFinal": Период перед выпиской (удовлетворительное состояние, подготовка к выписке).
+    
+    Используй профессиональную медицинскую терминологию на русском языке. Жалобы и статус должны соответствовать диагнозу и срокам.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.4, // Lower temperature for more consistent/conservative medical text
+        systemInstruction: "Ты - опытный лечащий врач хирургического отделения. Твоя задача - формулировать лаконичные и грамотные записи для истории болезни. Избегай воды.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            preOp: {
+              type: Type.OBJECT,
+              properties: {
+                complaints: { type: Type.STRING },
+                objectiveStatus: { type: Type.STRING },
+                localStatus: { type: Type.STRING },
+                recommendations: { type: Type.STRING },
+              },
+              required: ["complaints", "objectiveStatus", "localStatus", "recommendations"],
+            },
+            postOpStandard: {
+              type: Type.OBJECT,
+              properties: {
+                complaints: { type: Type.STRING },
+                objectiveStatus: { type: Type.STRING },
+                localStatus: { type: Type.STRING },
+                recommendations: { type: Type.STRING },
+              },
+              required: ["complaints", "objectiveStatus", "localStatus", "recommendations"],
+            },
+            postOpFinal: {
+              type: Type.OBJECT,
+              properties: {
+                complaints: { type: Type.STRING },
+                objectiveStatus: { type: Type.STRING },
+                localStatus: { type: Type.STRING },
+                recommendations: { type: Type.STRING },
+              },
+              required: ["complaints", "objectiveStatus", "localStatus", "recommendations"],
+            },
+          },
+          required: ["preOp", "postOpStandard", "postOpFinal"],
+        },
       },
     });
 
     if (response.text) {
-      const text = response.text.trim();
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```|({[\s\S]*})/);
-
-      if (jsonMatch) {
-        const jsonString = jsonMatch[1] || jsonMatch[2];
-        try {
-          return JSON.parse(jsonString);
-        } catch (e) {
-            console.error("Failed to parse extracted JSON:", e);
-            throw new Error("Не удалось разобрать JSON, полученный от AI.");
-        }
-      } else {
-         try {
-            return JSON.parse(text);
-         } catch(e) {
-            console.error("Failed to parse raw text as JSON:", text);
-            throw new Error("Ответ AI не является валидным JSON.");
-         }
-      }
+      return JSON.parse(response.text);
     }
-    return null;
+    throw new Error("Получен пустой ответ от модели.");
   } catch (error) {
     console.error("GenAI Error:", error);
      if (error instanceof Error) {

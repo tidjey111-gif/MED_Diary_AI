@@ -34,20 +34,20 @@ const getRandomElement = <T>(arr: T[]): T => {
 
 // Generate realistic vitals variation
 export const generateVitals = () => {
-  const systolicValues = [120, 125, 130];
-  const diastolicValues = [80, 85, 90];
+  const systolicOptions = [120, 125, 130];
+  const diastolicOptions = [80, 85, 90];
 
-  const sys = getRandomElement(systolicValues);
-  const dia = getRandomElement(diastolicValues);
+  const sys = getRandomElement(systolicOptions);
+  const dia = getRandomElement(diastolicOptions);
   
-  const hr = getRandomInt(60, 78);
+  const hr = getRandomInt(62, 78);
   const rr = getRandomInt(16, 18);
   
   return {
     bloodPressure: `${sys}/${dia}`,
     heartRate: hr,
     respiratoryRate: rr,
-    temperature: 36.0 + (getRandomInt(2, 8) / 10), // 36.2 - 36.8
+    temperature: 36.0 + (getRandomInt(2, 7) / 10), // 36.2 - 36.7
   };
 };
 
