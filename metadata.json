@@ -1,0 +1,5 @@
+{
+  "name": "MedDiary GenAI",
+  "description": "Automated medical observation diary generator using Gemini AI for dynamic clinical content and Docx export.",
+  "requestFramePermissions": []
+}
