@@ -32,7 +32,7 @@ export const generateDiaryText = async (data: PatientData): Promise<any> => {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction: "Ты - опытный лечащий врач хирургического отделения. Твоя задача - формулировать лаконичные и грамотные записи для истории болезни. Избегай воды.",
