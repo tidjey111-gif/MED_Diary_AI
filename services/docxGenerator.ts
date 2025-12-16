@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, TextRun, AlignmentType } from "docx";
+import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle } from "docx";
 import saveAs from "file-saver";
 import { DiaryEntry, PatientData } from "../types";
 import { formatDate } from "../utils/helpers";
@@ -135,7 +135,7 @@ const createEntryBlock = (entry: DiaryEntry, patientName: string, doctorName: st
                 bottom: {
                     color: "E0E0E0",
                     space: 1,
-                    value: "single",
+                    style: BorderStyle.SINGLE,
                     size: 6,
                 },
             },
@@ -219,7 +219,7 @@ export const generateDocx = async (data: PatientData, entries: DiaryEntry[]) => 
                             bottom: {
                                 color: "E0E0E0",
                                 space: 1,
-                                value: "single",
+                                style: BorderStyle.SINGLE,
                                 size: 6,
                             },
                         },
