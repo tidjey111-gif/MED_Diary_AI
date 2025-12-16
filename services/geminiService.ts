@@ -1,10 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { PatientData } from "../types";
 
+// Объявляем process для TypeScript, так как vite.config.ts заменит его при сборке,
+// но tsc проверка проходит до сборки и может выдать ошибку.
+declare var process: {
+  env: {
+    API_KEY: string;
+  };
+};
+
 export const generateDiaryText = async (data: PatientData): Promise<any> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API-ключ не найден. Убедитесь, что он настроен в среде выполнения.");
+    throw new Error("API-ключ не найден. Убедитесь, что он настроен в среде выполнения (Vercel Environment Variables).");
   }
 
   const ai = new GoogleGenAI({ apiKey });
