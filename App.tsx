@@ -19,58 +19,27 @@ const App: React.FC = () => {
     gender: 'female'
   });
 
-  // Load from local storage on mount
   useEffect(() => {
     const savedData = localStorage.getItem('medDiaryPatientData');
     if (savedData) {
-      try {
-        setPatientData(JSON.parse(savedData));
-      } catch (e) {
-        console.error("Failed to parse saved data", e);
-      }
+      try { setPatientData(JSON.parse(savedData)); } catch (e) {}
     }
   }, []);
 
-  // Save to local storage on change
   useEffect(() => {
     localStorage.setItem('medDiaryPatientData', JSON.stringify(patientData));
   }, [patientData]);
 
   const handleGenerate = async () => {
-    // 1. Basic Validation
     if (!patientData.fullName || !patientData.startDate || !patientData.endDate || !patientData.diagnosis) {
-      alert("Пожалуйста, заполните основные поля (ФИО, Даты, Диагноз).");
+      alert("Пожалуйста, заполните основные поля.");
       return;
-    }
-
-    // 2. Date Logic Validation
-    const start = new Date(patientData.startDate);
-    const end = new Date(patientData.endDate);
-    const surgery = patientData.surgeryDate ? new Date(patientData.surgeryDate) : null;
-
-    if (start > end) {
-      alert("Ошибка: Дата поступления не может быть позже даты выписки.");
-      return;
-    }
-
-    if (surgery) {
-      if (surgery < start || surgery > end) {
-        alert("Ошибка: Дата операции должна находиться в интервале между поступлением и выпиской.");
-        return;
-      }
-    } else {
-        alert("Пожалуйста, укажите дату операции.");
-        return;
     }
 
     setLoading(true);
     try {
       const generatedTemplates = await generateDiaryText(patientData);
-      if (!generatedTemplates) {
-        throw new Error("AI не вернул данные.");
-      }
-      
-      const { preOp, postOpStandard, postOpFinal } = generatedTemplates;
+      const { preOp, postOpStandard, postOpFinal, dischargeDay } = generatedTemplates;
       
       const dateRange = getDatesInRange(patientData.startDate, patientData.endDate);
       const diaryEntries: DiaryEntry[] = [];
@@ -78,12 +47,10 @@ const App: React.FC = () => {
       const endDateObj = new Date(patientData.endDate);
       const preDischargeDateObj = new Date(endDateObj);
       preDischargeDateObj.setDate(endDateObj.getDate() - 1); 
-      
       const preDischargeDateStr = preDischargeDateObj.toISOString().split('T')[0];
 
       dateRange.forEach((dateStr) => {
-        const isWeekEndDay = isWeekend(dateStr);
-        if(isWeekEndDay) {
+        if(isWeekend(dateStr)) {
             diaryEntries.push({
                 date: dateStr, isWeekend: true, dayType: 'weekend', time: '', heartRate: 0, bloodPressure: '', temperature: 0, complaints: '', objectiveStatus: '', localStatus: '', recommendations: '', isSurgeryDay: false, isHeadOfDeptInspection: false, isDischarge: false, respiratoryRate: 0
             });
@@ -100,12 +67,12 @@ const App: React.FC = () => {
         
         if (isBeforeSurgery) {
             template = preOp;
+        } else if (isDischarge) {
+            template = dischargeDay;
+        } else if (dateStr === preDischargeDateStr) {
+            template = postOpFinal;
         } else {
-            if (dateStr >= preDischargeDateStr) {
-                template = postOpFinal;
-            } else {
-                template = postOpStandard;
-            }
+            template = postOpStandard;
         }
         
         const baseEntry: Partial<DiaryEntry> = {
@@ -119,7 +86,7 @@ const App: React.FC = () => {
           bloodPressure: dayVitals.bloodPressure,
           temperature: parseFloat(dayVitals.temperature.toFixed(1)),
           complaints: template.complaints,
-          objectiveStatus: template.objectiveStatus || "Общее состояние удовлетворительное. Сознание ясное.",
+          objectiveStatus: template.objectiveStatus,
           localStatus: template.localStatus,
           recommendations: template.recommendations
         };
@@ -128,25 +95,25 @@ const App: React.FC = () => {
           diaryEntries.push({
             ...baseEntry, 
             time: formatTime(8), 
-            dayType: 'surgery_morning', 
-            complaints: preOp.complaints, 
+            dayType: 'surgery_morning',
+            complaints: preOp.complaints,
             objectiveStatus: preOp.objectiveStatus,
             localStatus: preOp.localStatus,
-            recommendations: "Подготовка к операции. Премедикация по назначению анестезиолога.",
+            recommendations: "Подготовка к операции. Премедикация."
           } as DiaryEntry);
 
-          const eveningVitals = generateVitals();
+          const ev = generateVitals();
           diaryEntries.push({
               ...baseEntry, 
               time: "18:00", 
               dayType: 'surgery_evening', 
-              respiratoryRate: eveningVitals.respiratoryRate,
-              heartRate: eveningVitals.heartRate, 
-              bloodPressure: eveningVitals.bloodPressure,
-              temperature: parseFloat(eveningVitals.temperature.toFixed(1)),
-              complaints: "На боли в области послеоперационной раны, слабость.", 
+              respiratoryRate: ev.respiratoryRate,
+              heartRate: ev.heartRate, 
+              bloodPressure: ev.bloodPressure,
+              temperature: parseFloat((ev.temperature + 0.5).toFixed(1)), // чуть выше вечером
+              complaints: "На боли в области раны, слабость.", 
               objectiveStatus: postOpStandard.objectiveStatus,
-              localStatus: "Повязка сухая, чистая. Отек умеренный. Кровотечения нет.", 
+              localStatus: "Повязка сухая. Гемостаз стабильный.", 
               recommendations: postOpStandard.recommendations,
               isHeadOfDeptInspection: false
           } as DiaryEntry);
@@ -156,34 +123,27 @@ const App: React.FC = () => {
       });
       
       await generateDocx(patientData, diaryEntries);
-      
     } catch (error) {
-      console.error(error);
-      alert("Ошибка: " + (error instanceof Error ? error.message : "Неизвестная ошибка"));
+      alert("Ошибка генерации. Попробуйте снова.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white text-[#1d1d1f] font-sans flex items-center justify-center p-6">
-      <div className="w-full max-w-4xl">
-        <header className="mb-4">
-            <h1 className="text-2xl font-bold text-[#1d1d1f] tracking-tight">MedDiary GenAI</h1>
+    <div className="min-h-screen bg-slate-50 text-[#1d1d1f] font-sans flex items-center justify-center p-6">
+      <div className="w-full max-w-4xl bg-white shadow-xl rounded-2xl p-8">
+        <header className="mb-8 border-b pb-4">
+            <h1 className="text-3xl font-bold text-[#2E74B5] tracking-tight">MedDiary GenAI</h1>
+            <p className="text-sm text-slate-500">Генератор врачебных дневников по стандартам РФ</p>
         </header>
 
-        <main className="grid grid-cols-1 md:grid-cols-4 gap-6 items-start">
+        <main className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-3">
-            <PatientForm 
-                data={patientData} 
-                onChange={setPatientData} 
-            />
+            <PatientForm data={patientData} onChange={setPatientData} />
           </div>
-          <div className="md:col-span-1 sticky top-6">
-             <ActionPanel
-                onSubmit={handleGenerate}
-                loading={loading}
-            />
+          <div className="md:col-span-1">
+             <ActionPanel onSubmit={handleGenerate} loading={loading} />
           </div>
         </main>
       </div>
